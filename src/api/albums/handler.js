@@ -1,3 +1,5 @@
+const ClientError = require("../../exceptions/ClientError");
+
 class AlbumsHandler {
   constructor(service, validator) {
     this._service = service;
@@ -7,6 +9,9 @@ class AlbumsHandler {
     this.getAlbumByIdHandler = this.getAlbumByIdHandler.bind(this);
     this.putAlbumByIdHandler = this.putAlbumByIdHandler.bind(this);
     this.deleteAlbumByIdHandler = this.deleteAlbumByIdHandler.bind(this);
+    this.postAlbumLikeHandler = this.postAlbumLikeHandler.bind(this);
+    this.deleteAlbumLikeHandler = this.deleteAlbumLikeHandler.bind(this);
+    this.getAlbumLikesHandler = this.getAlbumLikesHandler.bind(this);
   }
 
   async postAlbumHandler(request, h) {
@@ -38,7 +43,7 @@ class AlbumsHandler {
   async getAlbumByIdHandler(request, h) {
     try {
       const { id } = request.params;
-      const album = await this._service.getAlbumById(id); // ✅ TAMBAH await
+      const album = await this._service.getAlbumById(id);
       return {
         status: "success",
         data: {
@@ -60,7 +65,7 @@ class AlbumsHandler {
       this._validator.validateAlbumPayload(request.payload);
       const { id } = request.params;
 
-      await this._service.editAlbumById(id, request.payload); // ✅ TAMBAH await
+      await this._service.editAlbumById(id, request.payload);
 
       return {
         status: "success",
@@ -88,7 +93,7 @@ class AlbumsHandler {
   async deleteAlbumByIdHandler(request, h) {
     try {
       const { id } = request.params;
-      await this._service.deleteAlbumById(id); // ✅ TAMBAH await
+      await this._service.deleteAlbumById(id);
 
       return {
         status: "success",
@@ -100,6 +105,120 @@ class AlbumsHandler {
         message: error.message,
       });
       response.code(404);
+      return response;
+    }
+  }
+
+  async postAlbumLikeHandler(request, h) {
+    try {
+      const { id: albumId } = request.params;
+      const { id: userId } = request.auth.credentials;
+
+      await this._service.addAlbumLike(albumId, userId);
+
+      const response = h.response({
+        status: "success",
+        message: "Like berhasil ditambahkan",
+      });
+      response.code(201);
+      return response;
+    } catch (error) {
+      if (error.name === "InvariantError") {
+        const response = h.response({
+          status: "fail",
+          message: error.message,
+        });
+        response.code(400);
+        return response;
+      }
+
+      if (error.name === "NotFoundError") {
+        const response = h.response({
+          status: "fail",
+          message: error.message,
+        });
+        response.code(404);
+        return response;
+      }
+
+      // Server ERROR!
+      const response = h.response({
+        status: "error",
+        message: "Maaf, terjadi kegagalan pada server kami.",
+      });
+      response.code(500);
+      console.error(error);
+      return response;
+    }
+  }
+
+  async deleteAlbumLikeHandler(request, h) {
+    try {
+      const { id: albumId } = request.params;
+      const { id: userId } = request.auth.credentials;
+
+      await this._service.deleteAlbumLike(albumId, userId);
+
+      return {
+        status: "success",
+        message: "Like berhasil dihapus",
+      };
+    } catch (error) {
+      if (error.name === "NotFoundError") {
+        const response = h.response({
+          status: "fail",
+          message: error.message,
+        });
+        response.code(404);
+        return response;
+      }
+
+      // Server ERROR!
+      const response = h.response({
+        status: "error",
+        message: "Maaf, terjadi kegagalan pada server kami.",
+      });
+      response.code(500);
+      console.error(error);
+      return response;
+    }
+  }
+
+  async getAlbumLikesHandler(request, h) {
+    try {
+      const { id } = request.params;
+
+      // Ambil likes dari service (sudah include logic cache)
+      const { likes, source } = await this._service.getAlbumLikesCount(id);
+
+      const response = h.response({
+        status: "success",
+        data: {
+          likes,
+        },
+      });
+
+      response.code(200);
+      // Set header berdasarkan source dari service
+      response.header("X-Data-Source", source);
+
+      return response;
+    } catch (error) {
+      if (error instanceof ClientError) {
+        const response = h.response({
+          status: "fail",
+          message: error.message,
+        });
+        response.code(error.statusCode);
+        return response;
+      }
+
+      const response = h.response({
+        status: "error",
+        message: "Maaf, terjadi kegagalan pada server kami.",
+      });
+      response.code(500);
+      console.error(error);
       return response;
     }
   }

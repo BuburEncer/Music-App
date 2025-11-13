@@ -22,6 +22,10 @@ export const up = (pgm) => {
       type: "INTEGER",
       notNull: true,
     },
+    cover_url: {
+      type: "TEXT",
+      notNull: false,
+    },
   });
 };
 
